@@ -4,6 +4,7 @@ from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 
 def evaluate(net,loader,device, use_meta, threshold=0.5):
     net.eval()
@@ -46,3 +47,44 @@ def evaluate(net,loader,device, use_meta, threshold=0.5):
     plt.legend()
     plt.show()
     return cm, ys, ps, idx
+
+def plot_confusion_matrix(preds, ys, output_dir,
+                          title="Evaluation_Metrics",
+                          save=True,
+                          dpi=300):
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Compute and plot confusion matrix
+    cm = confusion_matrix(ys, preds)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=[0, 1])
+    disp.plot(cmap=plt.cm.Blues)
+    plt.title(title)
+
+    if save:
+        base_path = f"{output_dir}/{title}"
+        plt.savefig(f"{base_path}.jpg", format='jpg', dpi=dpi)
+        plt.savefig(f"{base_path}.ps",  format='ps',  dpi=dpi)
+        plt.savefig(f"{base_path}.eps", format='eps', dpi=dpi)
+
+    plt.show()
+
+
+    # Plot histogram of probability of classification
+def probability_histogram(ps, ys, output_dir, title="Evaluation_Metrics", save=True, dpi=300):
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    plt.figure(figsize=(6, 4))
+    sns.histplot(ps[ys == 0], color='blue', label='Class 0', kde=False, stat="density", bins=20)
+    sns.histplot(ps[ys == 1], color='red', label='Class 1', kde=False, stat="density", bins=20)
+    plt.xlabel("Predicted probability")
+    plt.ylabel("Density")
+    plt.title(title)
+    plt.legend()
+    if save:
+        path_base = f"{output_dir}/{title}"
+        plt.savefig(f"{path_base}.jpg", format='jpg', dpi=dpi)
+        plt.savefig(f"{path_base}.ps",  format='ps',  dpi=dpi)
+        plt.savefig(f"{path_base}.eps", format='eps', dpi=dpi)
+    plt.show()
