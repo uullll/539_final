@@ -4,15 +4,16 @@ import torchvision as tv
 import torch
 import torch.nn.functional as F
 from Utility import HyperParameters
+from math import sqrt
 
 # cascade loss method adapted from https://github.com/svishwa/crowdcount-cascaded-mtl/blob/master/src/crowd_count.py
 # Attention based method adapted from https://github.com/AMLab-Amsterdam/AttentionDeepMIL/blob/master/main.py
 
 class PatientClassifier(nn.Module):
-    def __init__(self, Attention, ResNet101Meta, meta_dim = 3, dropout=0.2):
+    def __init__(self, attention, resnet101meta, meta_dim = 3, dropout=0.2):
         super().__init__()
-        self.attention = Attention(ATTENTION_BRANCHES = 1, meta_dim = meta_dim, dropout=dropout)
-        self.resnet101 = ResNet101Meta(dropout=dropout)
+        self.attention = attention(attention_branches = 1, meta_dim = meta_dim, dropout=dropout)
+        self.resnet101 = resnet101meta(dropout=dropout)
         self.meta_dim = meta_dim
 
     def forward(self, imgs, meta):
@@ -21,25 +22,25 @@ class PatientClassifier(nn.Module):
         return logits_patient, logits_lesion
 
 class Attention(nn.Module, HyperParameters):
-    def __init__(self, input_dim = 1000, L=128, M=500, ATTENTION_BRANCHES=3, meta_dim=3, dropout=0.2):
+    def __init__(self, input_dim = 1000, L=128, M=500, attention_branches=3, meta_dim=3, dropout=0.2):
 
         super().__init__()
         self.save_hyperparameters()
 
         if meta_dim > 0:
-            meta = 18
-        else: meta = 0
+            self.meta = 18
+        else: self.meta = 0
 
         self.fc = nn.Sequential(
             nn.Linear(input_dim, M),
-            nn.ReLU())
+            nn.Tanh())
 
         self.attention = nn.Sequential(
-            nn.Linear(M + meta, L),
+            nn.Linear(M + self.meta, L),
             nn.Tanh(),
-            nn.Linear(L, ATTENTION_BRANCHES))
+            nn.Linear(L, attention_branches))
 
-        self.classifier = nn.Linear(M + meta, 1)
+        self.classifier = nn.Linear(attention_branches*(M + self.meta), 1)
 
         self.process_patient_meta = nn.Sequential(
             nn.Linear(2, 32),
@@ -48,6 +49,7 @@ class Attention(nn.Module, HyperParameters):
             nn.Linear(32, 16),
             nn.ReLU(),
         )
+        self.layernorm = nn.LayerNorm(attention_branches*(M + self.meta))
 
         self.dropout = nn.Dropout(dropout)
 
@@ -66,28 +68,31 @@ class Attention(nn.Module, HyperParameters):
         return torch.cat((patient_meta, sex_age), dim=1)  # (K,18)
 
     def forward(self, embeddings, meta, logits_lesion):
-        # Project embeddings
         H = self.fc(embeddings)  # [K, M]
-
-        # Process meta if exists
-        if self.meta_dim > 0:
-            patient_meta = self.get_patient_meta(logits_lesion, meta)  # [K, meta_features]
-            H = torch.cat((H, patient_meta), dim=1)  # [K, M + meta]
 
         H = self.dropout(H)
 
+        if self.meta_dim > 0:
+            patient_meta = self.get_patient_meta(logits_lesion, meta)  # [K, meta_features]
+            H = torch.cat((H, patient_meta), dim=1)
+
         # Attention
-        A = self.attention(H)  # [K, ATTENTION_BRANCHES]
-        A = A.transpose(0, 1)  # [ATTENTION_BRANCHES, K]
-        A = F.softmax(A, dim=1)  # softmax over instances
+        A = self.attention(H/sqrt(H.size(1)))  # [K, attention_branches]
+        A = A.transpose(0, 1)  # [attention_branches, K]
+        A = F.softmax(A, dim=1) + 1e-6 # softmax over instances
+
 
         # Pool embeddings using attention
-        Z = torch.mm(A, H)  # [ATTENTION_BRANCHES, M + meta]
+        Z = torch.mm(A, H)  # [attention_branches, M + meta]
+        Z = Z.view(1, -1)  # collapse branches
+        Z = self.layernorm(Z)
+        # if self.meta_dim > 0:
+        #     patient_meta = self.get_patient_meta(logits_lesion, meta)  # [K, meta_features]
+        #     Z = torch.cat((Z, patient_meta), dim=1)
+        Z = self.dropout(Z)
 
-        # Collapse attention branches
-        Z = Z.mean(dim=0, keepdim=True)  # [1, M + meta]
 
-        # Final patient-level classification
+
         logits_patient = self.classifier(Z)  # [1, 1]
         return logits_patient.squeeze(-1)
 
@@ -109,17 +114,17 @@ class Attention(nn.Module, HyperParameters):
     #
     #
     #     H = self.dropout(H)
-    #     A = self.attention(H)  # (K, ATTENTION_BRANCHES)
+    #     A = self.attention(H)  # (K, attention_branches)
     #     print("A raw", A.shape)
     #
-    #     A = A.transpose(0, 1)  # (ATTENTION_BRANCHES, K)
+    #     A = A.transpose(0, 1)  # (attention_branches, K)
     #
     #     A = F.softmax(A, dim=1)  # softmax over instances
     #     print("A softmax", A.shape)
     #
     #
     #     # Pool embeddings using attention
-    #     Z = torch.mm(A, H)  # (ATTENTION_BRANCHES, M + meta)
+    #     Z = torch.mm(A, H)  # (attention_branches, M + meta)
     #     print("Z", Z.shape)
     #
     #
@@ -127,7 +132,7 @@ class Attention(nn.Module, HyperParameters):
     #     # Z = torch.cat((Z, patient_meta), dim=1)
     #
     #     # Final patient-level classification
-    #     logits_patient = self.classifier(Z)  # (ATTENTION_BRANCHES,1)
+    #     logits_patient = self.classifier(Z)  # (attention_branches,1)
     #     print("logits_patient raw", self.classifier(Z).shape)
     #     logits_patient = logits_patient.mean(dim=0, keepdim=True)
     #
@@ -192,7 +197,7 @@ class GatedAttention(nn.Module):
         super(GatedAttention, self).__init__()
         self.M = 500
         self.L = 128
-        self.ATTENTION_BRANCHES = 1
+        self.attention_branches = 1
 
         self.feature_extractor_part1 = nn.Sequential(
             nn.Conv2d(1, 20, kernel_size=5),
@@ -218,10 +223,10 @@ class GatedAttention(nn.Module):
             nn.Sigmoid()
         )
 
-        self.attention_w = nn.Linear(self.L, self.ATTENTION_BRANCHES) # matrix w (or vector w if self.ATTENTION_BRANCHES==1)
+        self.attention_w = nn.Linear(self.L, self.attention_branches) # matrix w (or vector w if self.attention_branches==1)
 
         self.classifier = nn.Sequential(
-            nn.Linear(self.M*self.ATTENTION_BRANCHES, 1),
+            nn.Linear(self.M*self.attention_branches, 1),
             nn.Sigmoid()
         )
 
@@ -234,11 +239,11 @@ class GatedAttention(nn.Module):
 
         A_V = self.attention_V(H)  # KxL
         A_U = self.attention_U(H)  # KxL
-        A = self.attention_w(A_V * A_U) # element wise multiplication # KxATTENTION_BRANCHES
-        A = torch.transpose(A, 1, 0)  # ATTENTION_BRANCHESxK
+        A = self.attention_w(A_V * A_U) # element wise multiplication # Kxattention_branches
+        A = torch.transpose(A, 1, 0)  # attention_branchesxK
         A = F.softmax(A, dim=1)  # softmax over K
 
-        Z = torch.mm(A, H)  # ATTENTION_BRANCHESxM
+        Z = torch.mm(A, H)  # attention_branchesxM
 
         Y_prob = self.classifier(Z)
         Y_hat = torch.ge(Y_prob, 0.5).float()

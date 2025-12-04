@@ -9,12 +9,12 @@ from Utility import HyperParameters
 
 def get_df(csv):
     df = pd.read_csv(csv)
-    cols = ["image_name","patient_id","sex","age_approx","anatom_site_general_challenge","target", 'patient_label']
+    cols = ["image_name","patient_id","sex","age_approx","anatom_site_general_challenge","target"]
     assert all(column in df.columns for column in cols), f"train.csv is missing some columns. Current columns are: {df.columns}"
     df = df[cols].copy()
     return df
 
-def group_split_df(df, test_size= 0.4, image_path = 'training_data/jpg'):
+def group_split_df(df, test_size= 0.4, image_path = 'training_data/2020/jpg'):
     gss = GroupShuffleSplit(n_splits=1, test_size= test_size, random_state=42)
     train_idx, temp_idx = next(gss.split(df, groups=df["patient_id"]))
 
@@ -28,12 +28,12 @@ def group_split_df(df, test_size= 0.4, image_path = 'training_data/jpg'):
     return train_df, val_df, test_df
 
 def pathify(frame, image_path):
-    if image_path == 'training_data/jpg':
+    if image_path == 'training_data/2020/jpg':
         return frame.assign(path=frame["image_name"].apply(lambda x: f"{image_path}/{x}.jpg"))
-    elif image_path == 'training_data/pth':
+    elif image_path == 'training_data/2020/pth':
         return frame.assign(path=frame["image_name"].apply(lambda x: f"{image_path}/{x}.pth"))
     else:
-        raise ValueError("Only image_path/image_name and image_path/pth/image_name image or tensor file paths are supported. Ensure the images are in those locations. The image_path is set when PatientDS is instantiated. ")
+        raise ValueError("Only 'training_data/2020/jpg' and 'training_data/2020/pth' image or tensor file paths are supported. image_path is set when PatientDS is instantiated.")
 
 # print("Train/Val/test size:", len(train_df), len(val_df), len(test_df))
 
@@ -75,25 +75,41 @@ def encode_meta(frame, meta_cols, num_cols):
 # val_ds   = MelanomaDS(val_df,   val_tfms,   meta=(val_meta   if use_meta else None), mode='Train')
 # test_ds  = MelanomaDS(test_df,  test_tfms,   meta=(test_meta  if use_meta else None), mode = 'Test')
 
-class PatientDS(Dataset, HyperParameters):
-    def __init__(self, df, transform=None, image_path='training_data/jpg', use_meta=False, mode='train', saving_images=False):
-        self.save_hyperparameters(ignore=['df','mode'])
-        self.df = pathify(df, image_path)
-        self.patient_ids = df["patient_id"].unique()
-        self.groups = df.groupby("patient_id").indices
-        self.mode = mode.lower()
-        self.transform = transform
-        if self.saving_images:
-            warn(f"Saving images as tensors is enabled. Images will be iteratively saved to {image_path} when __getitem__ is called. Disable if this is not intended.")
+import warnings
+import torch
+from torch.utils.data import Dataset
+from PIL import Image
+import torchvision.transforms as tv
+import pandas as pd
 
+class PatientDS(Dataset, HyperParameters):
+    def __init__(self, df, transform=None, image_path='training_data/2020/jpg',
+                 use_meta=False, mode='train', saving_images=False, upsampling=False):
+        self.save_hyperparameters(ignore = ['df', 'mode'])
+        self.df = pathify(df, image_path)
+        self.df['patient_label'] = self.df.groupby('patient_id')['target'].transform(lambda x: 1 if x.eq(1).any() else 0)
+        self.patient_ids = self.df["patient_id"].unique()
+        self.sum_pos_lesions = self.df.groupby('patient_id')['target'].sum()
+        self.groups = self.df.groupby("patient_id").indices
+        self.mode = mode.lower()
+
+        if self.saving_images:
+            warnings.warn(
+                f"Saving images as tensors is enabled. Images will be iteratively saved to {image_path} when __getitem__ is called."
+            )
+        if self.mode != 'train' and self.upsampling is True:
+            self.upsampling = False
+            warnings.warn("No upsampling because mode is not 'train'")
         if self.transform is None:
+            if self.upsampling:
+                warnings.warn("No upsampling because transformation is None.")
+                self.upsampling = False
             self.transform = tv.transforms.Compose([
-        tv.transforms.Resize((224, 224)),
-        tv.transforms.ToTensor(),
-        tv.transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225])
-    ])
-            warn(f"No transform specified. Using default transform: {self.transform}",
-                 UserWarning, stacklevel=2)
+                tv.transforms.Resize((224, 224)),
+                tv.transforms.ToTensor(),
+                tv.transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225])
+            ])
+            warnings.warn(f"No transform specified. Using default transform: {self.transform}", UserWarning, stacklevel=2)
 
         if use_meta:
             meta_cols_cat = ["sex", "anatom_site_general_challenge"]
@@ -111,51 +127,56 @@ class PatientDS(Dataset, HyperParameters):
     def __len__(self):
         return len(self.patient_ids)
 
-    def get_image(self, row):
-        if self.image_path == "training_data/jpg":
+    def _get_image(self, row):
+        if self.image_path.endswith("jpg"):
             img = Image.open(row.path).convert("RGB")
             x = self.transform(img)
             lesion_label = torch.tensor(row.target, dtype=torch.float32)
-            patient_label = torch.tensor(row.patient_label, dtype=torch.float32)
+
             if self.meta is not None:
                 m = torch.tensor(self.meta[row.Index], dtype=torch.float32)
             else:
                 m = torch.empty(0, dtype=torch.float32)
-            return x, patient_label, lesion_label, m
 
-        elif self.image_path == "training_data/pth":
+            return x, lesion_label, m
+
+        elif self.image_path.endswith("pth"):
             x = torch.load(row.path)
-        return x['img'],  x['patient_label'], x['lesion_label'], x['meta']
-
+            return x['img'], x['lesion_label'], x['meta']
+        else:
+            raise FileNotFoundError(
+                'Data folder not found. Use "training_data/2020/jpg" or "training_data/2020/pth".'
+            )
 
     def __getitem__(self, i):
         pid = self.patient_ids[i]
         rows = self.df.iloc[self.groups[pid]]
 
-        imgs, patient_label, lesion_label_total, M = [], [], [], []
+        # Upsample positives if requested
+        if self.upsampling:
+            rows = balance_patient(rows)
+
+        imgs, lesion_label_total, M = [], [], []
 
         for row in rows.itertuples(index=True):
-            img, patient_label, lesion_label, m = self.get_image(row)
+            img, lesion_label, m = self._get_image(row)
             imgs.append(img)
             lesion_label_total.append(lesion_label)
             M.append(m)
+
             if self.saving_images:
-                warn('Saving images into "training_data/pth" as tensors. Stop if this is not intended.')
+                warnings.warn('Saving images into "training_data/2020/pth" as tensors. Stop if this is not intended.')
                 sample = {
                     "img": img,
                     "meta": m.cpu(),
-                    "lesion_label": lesion_label.cpu(),
-                    'patient_label': patient_label.cpu()
+                    "lesion_label": lesion_label.cpu()
                 }
-                torch.save(sample, f"training_data/pth/{row.image_name}.pth")
-
+                torch.save(sample, f"training_data/2020/pth/{row.Index}.pth")
 
         lesion_labels = torch.stack(lesion_label_total)
 
-        patient_label = torch.tensor(
-            [1. if (lesion_labels == 1).any() else 0.],
-            dtype=torch.float32
-        )
+        # Get patient label from precomputed column
+        patient_label = torch.tensor([rows['patient_label'].iloc[0]], dtype=torch.float32)
 
         if self.meta is not None:
             M = torch.stack(M)
@@ -165,16 +186,31 @@ class PatientDS(Dataset, HyperParameters):
         return torch.stack(imgs), patient_label, lesion_labels, M
 
 
-def get_sampler(df, oversample_ratio=3):
-    # Reduce by patient_ID
-    patient_df = df.groupby("patient_id")["patient_label"].max().reset_index()
 
+def balance_patient(group):
+    pos = group[group['target'] == 1]
+    neg = group[group['target'] == 0]
+
+    if len(pos) == 0 or len(neg) == 0:
+        return group
+
+    if len(pos) < len(neg):
+        pos_upsampled = pos.sample(len(neg), replace=True)
+        return pd.concat([neg, pos_upsampled], ignore_index=True)
+    else:
+        return group
+
+
+
+def get_sampler(ds, oversample_ratio=3):
+    # Reduce by patient_ID
+    df = ds.df
     # Compute positive weight for BCE
-    pos = (patient_df["patient_label"] == 1).mean()
+    pos = (df["patient_label"] == 1).mean()
     w_pos = (1 - pos) / max(pos, 1e-6)
 
     # Map to sample weights
-    weights = patient_df["patient_label"].map({0: 1.0, 1: w_pos}).values
+    weights = df["patient_label"].map({0: 1.0, 1: w_pos}).values
     weights = torch.tensor(weights, dtype=torch.float32)
 
     # Oversample positives by increasing num_samples

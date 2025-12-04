@@ -1,15 +1,14 @@
 from torch.amp import autocast, GradScaler
-from torch.utils.data import WeightedRandomSampler
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import random
 import numpy as np
 import torch
-from Utility import TrainingMetrics, epochTrainingMetrics
+from Utility import TrainingMetrics, EpochTrainingMetrics
 import contextlib
 
 def train(
-        net, train_dl, val_dl, criterion_patient, criterion_lesion, opt,
+        net, train_dl, val_dl, criterion_patient, criterion_lesion, opt, lam = 0.001,
         epochs=3, device="mps", best_model_name="best.pt",
         threshold=0.5, patience=2
 ):
@@ -24,9 +23,9 @@ def train(
 
     for epoch in range(epochs):
         # Train one epoch
-        train_metrics = train_one_epoch(net, train_dl, scaler, device, criterion_patient, criterion_lesion, opt, use_meta, threshold)
+        train_metrics = train_one_epoch(net, train_dl, scaler, device, criterion_patient, criterion_lesion, opt, lam, use_meta)
         # Validate one epoch
-        val_metrics = val_one_epoch(net, val_dl, criterion_patient, criterion_lesion, device, use_meta, threshold)
+        val_metrics = val_one_epoch(net, val_dl, criterion_patient, criterion_lesion, device, use_meta)
 
         # Update global metrics and optionally save the best model
         metrics.update(train_metrics, val_metrics, net=net, epoch=epoch)
@@ -35,13 +34,13 @@ def train(
             print("Early stopping triggered due to no improvement.")
             break
 
-    print(f"Best validation positive accuracy: {metrics.best_pos_acc:.4f}")
+    print(f"Best validation positive accuracy: {metrics.best_patient_pos_acc:.4f}")
     return metrics
 
 
-def train_one_epoch(net, train_dl, scaler, device, criterion_patient, criterion_lesion, opt, use_meta, threshold=0.5):
+def train_one_epoch(net, train_dl, scaler, device, criterion_patient, criterion_lesion, opt, lam, use_meta = True):
     net.train()
-    metrics = epochTrainingMetrics()
+    metrics = EpochTrainingMetrics()
 
     for xb, yb_patient, yb_lesion, mb in tqdm(train_dl):
         xb, yb_patient, yb_lesion = xb.to(device).squeeze(0), yb_patient.to(device).squeeze(0), yb_lesion.to(device).squeeze(0)
@@ -55,10 +54,10 @@ def train_one_epoch(net, train_dl, scaler, device, criterion_patient, criterion_
             contextlib.nullcontext()
         )
         with autocast_ctx:
-            logits_patient, logits_lesion = net(xb, mb) if use_meta else net(xb)
+            logits_patient, logits_lesion = net(xb, mb)
             loss_patient = criterion_patient(logits_patient, yb_patient)
             loss_lesion = criterion_lesion(logits_lesion.squeeze(-1), yb_lesion)
-            loss =  loss_lesion*0.001 + loss_patient
+            loss =  loss_lesion*lam + loss_patient
 
         if scaler is not None:
             scaler.scale(loss).backward()
@@ -74,9 +73,9 @@ def train_one_epoch(net, train_dl, scaler, device, criterion_patient, criterion_
     return metrics
 
 
-def val_one_epoch(net, val_dl, criterion_patient, criterion_lesion, device, use_meta, threshold=0.5):
+def val_one_epoch(net, val_dl, criterion_patient, criterion_lesion, device, use_meta):
     net.eval()
-    metrics = epochTrainingMetrics()
+    metrics = EpochTrainingMetrics()
 
     with torch.no_grad():
         for xb, yb_patient, yb_lesion, mb in tqdm(val_dl):
@@ -84,10 +83,10 @@ def val_one_epoch(net, val_dl, criterion_patient, criterion_lesion, device, use_
                 device).squeeze(0)
             mb = mb.to(device).squeeze(0) if use_meta else None
 
-            logits_patient, logits_lesion = net(xb, mb) if use_meta else net(xb)
+            logits_patient, logits_lesion = net(xb, mb)
             loss_patient = criterion_patient(logits_patient, yb_patient)
             loss_lesion = criterion_lesion(logits_lesion.squeeze(-1), yb_lesion)
-            loss = loss_patient + loss_lesion * 0.2
+            loss = loss_patient + loss_lesion * 0.4
 
             metrics.append_loss(loss.detach().item())
             metrics.compute_metrics(logits_patient, logits_lesion, yb_lesion, yb_patient)
@@ -96,7 +95,6 @@ def val_one_epoch(net, val_dl, criterion_patient, criterion_lesion, device, use_
 
 
 def plot_train_hist(train_metrics):
-    epochs = train_metrics.last_epoch
     hist_train_loss = train_metrics.hist_train_loss
     hist_val_loss = train_metrics.hist_val_loss
     hist_val_acc = train_metrics.hist_val_acc
