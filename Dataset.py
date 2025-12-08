@@ -73,6 +73,180 @@ def encode_meta(frame, enc, meta_cols, num_cols):
     num = (num - 0.0) / 100.0    # rough age scaling
     return np.concatenate([cat, num], axis=1).astype(np.float32)
 
+class MelanomaDS_19_20(Dataset):
+
+    def __init__(self, use_meta=True):
+        super().__init__()
+
+        self.use_meta = use_meta
+
+        self.df_2019, self.datacols, self.metacols = self.get_df2019()
+        self.df_2019 = self.pathify(self.df_2019, "image", "2019")
+        self.df_2020 = self.get_df2020()
+        self.df_2020 = self.df_2020.rename(
+            columns={"anatom_site_general_challenge": "anatom_site_general", "image_name": "image",}
+            )
+        self.df_2020 = self.pathify(self.df_2020, "image", "2020")
+        # Metadata
+        self.meta_cols = ["anatom_site_general", "sex"]
+        self.num_cols  = ["age_approx"]
+
+        # Data
+        self.label_cols = ["MEL", "NV", "BKL", "DF",
+                           "VASC", "SCC", "AK", "BCC", "UNK"]
+
+        self.df_2019_meta = self.get_meta(self.df_2019)
+        self.df_2020_meta = self.get_meta(self.df_2020)
+
+        self.df = None
+        self.meta = None
+        self.transform = None
+
+    @classmethod
+    def full(cls, transform = None):
+        obj = cls()
+        if transform is not None:
+            obj.transform = transform
+
+        obj.df = pd.concat([obj.df_2019, obj.df_2020], ignore_index=True)
+
+        meta = pd.concat([obj.df_2019_meta,
+                          obj.df_2020_meta],
+                         ignore_index=True)
+
+        obj.meta = obj.encode_meta(meta, obj.meta_cols, obj.num_cols)
+        return obj
+
+    @classmethod
+    def train(cls, transform):
+        return cls._make_split(transform, "train")
+
+    @classmethod
+    def val(cls, transform):
+        return cls._make_split(transform, "val")
+
+    @classmethod
+    def test(cls, transform):
+        return cls._make_split(transform, "test")
+
+    @classmethod
+    def _make_split(cls, transform, split):
+        obj = cls()
+        obj.transform = transform
+
+        (t19, v19, te19,
+         t20, v20, te20) = make_splits(obj.df_2019, obj.df_2020)
+
+        split_map = {"train": (t19, t20), "val":   (v19, v20), "test":  (te19, te20)}
+        df19, df20 = split_map[split]
+
+        df = pd.concat([df19, df20], ignore_index=True)
+        meta = pd.concat([obj.df_2019_meta.loc[df19.index], obj.df_2020_meta.loc[df20.index],], ignore_index=True)
+
+        meta = obj.encode_meta(meta, obj.meta_cols, obj.num_cols)
+
+        obj.df = df
+        obj.meta = meta
+        return obj
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, i):
+        row = self.df.loc[i]
+
+        img = Image.open(row["path"]).convert("RGB")
+        x = self.transform(img)
+
+        labels = row[self.label_cols].astype(float).to_numpy()
+        y = torch.tensor(labels, dtype=torch.float32)
+
+        if self.use_meta and self.meta is not None:
+            m = torch.tensor(self.meta[i], dtype=torch.float32)
+        else:
+            m = torch.tensor([])
+
+        return x, y, m
+
+    def pathify(self, frame, image_col, split):
+        return frame.assign(path="jpeg/" + split + "/" + frame[image_col] + ".jpg")
+
+    def encode_meta(self, frame, meta_cols, num_cols):
+
+        enc = OrdinalEncoder(handle_unknown="use_encoded_value",
+                             unknown_value=-1)
+
+        enc.fit(frame[meta_cols])
+        cat = enc.transform(frame[meta_cols])
+
+        num = frame[num_cols].to_numpy(np.float32)
+        num = num / 100.0
+
+        return np.concatenate([cat, num], axis=1).astype(np.float32)
+
+    def get_df2019(self, csv_data="ISIC_2019_Training_GroundTruth.csv", csv_meta="ISIC_2019_Training_Metadata.csv"):
+        assert csv_data.endswith("ISIC_2019_Training_GroundTruth.csv")
+        assert csv_meta.endswith("ISIC_2019_Training_Metadata.csv")
+        df_data = pd.read_csv(csv_data)
+        df_meta = pd.read_csv(csv_meta)
+        df = pd.merge(df_data, df_meta, on='image', how='left')
+        cols = [
+            "image", "sex", "age_approx", "anatom_site_general",
+            "lesion_id", "MEL", "NV", "BCC", "AK", "BKL",
+            "DF", "VASC", "SCC", "UNK"]
+        missing = [c for c in cols if c not in df.columns]
+        assert len(missing) == 0, f"Missing columns: {missing}\nCurrent columns: {df.columns}"
+        df = df[cols].copy()
+        return df, df_data.columns.tolist(), df_meta.columns.tolist()
+
+    def get_df2020(self, path='ISIC_2020_Training_GroundTruth_v2.csv'):
+        self.bkl = {'seborrheic keratosis', 'lentigo NOS', 'lichenoid keratosis', 'solar lentigo'}
+        self.unknown = {'cafe-au-lait macule', 'atypical melanocytic proliferation'}
+        df = self._get_df2020(path)
+
+        df["diagnosis_collapsed"] = df["diagnosis"].apply(self.collapse_col)
+        classes = ["MEL", "NV", "BKL", "DF", "VASC", "SCC", "AK", "BCC", "UNK"]
+
+        # create binary columns
+        for c in classes:
+            df[c] = (df["diagnosis_collapsed"] == c).astype(int)
+
+        # drop original labels
+        df = df.drop(columns=["diagnosis", "diagnosis_collapsed"])
+        return df
+
+    def collapse_col(self, x):
+        if x in self.bkl:
+            return "BKL"
+        if x in self.unknown:
+            return "UNK"
+        return x
+
+    def _get_df2020(self, csv):
+        df = pd.read_csv(csv)
+        cols = ["image_name", "patient_id", "lesion_id", "sex", "age_approx", "anatom_site_general_challenge",
+                "diagnosis", "benign_malignant", "target"]
+        assert all(column in df.columns for column in
+                   cols), f"train.csv is missing some columns. Current columns are: {df.columns}"
+        df = df[cols].copy()
+        return df
+
+    def get_meta(self, df):
+        if self.use_meta:
+            df = df.copy()
+            # Fill categorical missing values
+            for c in self.meta_cols:
+                df[c] = df[c].fillna("UNK")
+
+            # Fill numeric missing values with median
+            for c in self.num_cols:
+                med = df[c].median()
+                df[c] = df[c].fillna(med)
+            return df
+        else:
+            return df
+
+
 
 class MelanomaDS(Dataset):
     def __init__(self, frame, tfm, use_meta=False, mode='Train'):
