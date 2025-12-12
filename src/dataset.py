@@ -13,7 +13,7 @@ from PIL import Image
 # epochs2=2
 # use_meta=True
 # num_workers=0 ##
-# device   = "mps" if torch.backends.mps.is_available() else "cpu"
+# device   = "cuda" if torch.cuda.is_available() else "cpu"
 # print("Device:", device)
 
 

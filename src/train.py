@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 
 
 def train(net, train_dl, val_dl, criterion, opt, epochs = 3, lr = 1e-4,
-          device = "mps", best_model_name = "best.pt", threshold = 0.5, patience = 2):
+        device = "cuda", best_model_name = "best.pt", threshold = 0.5, patience = 2):
 
     # Set training specs
-    device = device if torch.backends.mps.is_available() else "cpu"
+    device = device if torch.cuda.is_available() else "cpu"
     scaler = GradScaler(device=device)
     for g in opt.param_groups:
         g["lr"] = lr
@@ -71,7 +71,7 @@ def train_one_epoch(net, train_dl, scaler, device, criterion, opt, use_meta, thr
 
         opt.zero_grad(set_to_none=True)
 
-        with autocast(device_type="mps"):
+        with autocast(device_type="cuda"):
             if use_meta:
                 logits = net(xb, mb)
             else:
@@ -99,7 +99,7 @@ def val_one_epoch(net, val_dl, criterion, device, use_meta, threshold = 0.5):
             xb = xb.to(device)
             yb = yb.to(device)
             mb = mb.to(device) if (use_meta and mb.numel() > 0) else None
-            with autocast(device_type="mps"):
+            with autocast(device_type="cuda"):
                 logits = net(xb, mb)
                 prob = torch.sigmoid(logits)
                 loss = criterion(logits, yb)
@@ -141,7 +141,7 @@ import numpy as np
 import torch
 
 
-def set_seed_mps(seed=33):
+def set_seed_cuda(seed=33):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -153,7 +153,7 @@ def set_seed_mps(seed=33):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    if torch.backends.mps.is_available():
+    if torch.cuda.is_available():
         torch.manual_seed(seed)
 
 

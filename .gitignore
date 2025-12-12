@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints
+data/
+models/*.pth
+.DS_Store
+
+# datasets/
+tfrecords/
+test/
+training_data/
+notebooks/
+jpeg/
+.vscode/
+pth/
+*_old*.ipynb
