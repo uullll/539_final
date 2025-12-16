@@ -40,7 +40,7 @@ project-root/
 
 
 ## Set up
-First run all in main_2020.ipynb, main will call the fuction from the api in src. After running, main will create model like Best_Efficient_net_B6.pt, Best_Restnet101_meta.pt, best.pt.
+First run all in main; main will call the fuction from the api in src. After running, main will create model like Best_Efficient_net_B6.pt, Best_Restnet101_meta.pt, best.pt.
 
 
 ## Run
