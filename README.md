@@ -26,7 +26,7 @@ project-root/
 │   │   ├── Models_lesion.py               # Model architectures
 │   │   ├── Train.py                       # Training scripts
 │   │   ├── Evaluate_multiclass.py         # Evaluation scripts for multi-class classification
-│   │   └── Utility.py                     # Helper functions (data loading, metrics, etc.)
+│   │   └── Utility.py                     # Helper functions
 │   ├── 2020/                              # 2020-only experiments
 │   │   ├── dataset.py                      # Dataset definitions for 2020
 │   │   ├── models.py                       # Model architectures for 2020
@@ -34,7 +34,7 @@ project-root/
 │   │   └── evaluate.py                     # Evaluation scripts
 │   └── 2020_Patient/                      # Patient-level dataset handling
 │       └── PatientDataset.py               # Patient dataset class
-├── app.py                                 # Main application / inference entry point
+├── app.py                                 # Main application 
 ├── main.html                              # Frontend or visualization page
 ├── main_2020.ipynb                        # Notebook for 2020 experiments
 ├── main_2020_2019_BCE.ipynb               # Notebook for combined 2019+2020 BCE training
