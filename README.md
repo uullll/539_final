@@ -18,10 +18,10 @@ First run all in main.ipynb, main will call the fuction from the api in src. Aft
 
 
 ## Run
-Then you can run 
+Then you can run:
 
 
 ```bash
 python3 app.py
 ```
-It will create a website to analysis the picture
+It will create a website to analyze the image.
