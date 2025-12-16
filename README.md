@@ -12,34 +12,36 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 ## Project Structure
+
+```text
 project-root/
-├── Exported_Figures/                      # Saved plots and evaluation figures
+├── Exported_Figures/
 │   ├── EffNetB6 Confusion Matrix.jpg
 │   ├── EffNetB6 Probability Histogram.jpg
 │   ├── ResNet101 with Weighted Loss Confusion Matrix.jpg
 │   └── ResNet101 with Weighted Loss Probability Histogram.jpg
-├── src/                                   # Core source code
-│   ├── 2019+2020/                         # Combined 2019–2020 experiments
-│   │   ├── Dataset_2019_2020.py           # Dataset definition
-│   │   ├── Models_lesion.py               # Model architectures
-│   │   ├── Train.py                       # Training pipeline
-│   │   ├── Evaluate_multiclass.py         # Evaluation logic
-│   │   └── Utility.py                     # Helper functions
-│   ├── 2020/                              # 2020-only experiments
-│   │   ├── __init__.py
+├── src/
+│   ├── 2019+2020/
+│   │   ├── Dataset_2019_2020.py
+│   │   ├── Models_lesion.py
+│   │   ├── Train.py
+│   │   ├── Evaluate_multiclass.py
+│   │   └── Utility.py
+│   ├── 2020/
 │   │   ├── dataset.py
 │   │   ├── models.py
 │   │   ├── train.py
 │   │   └── evaluate.py
-│   └── 2020_Patient/                      # Patient-level dataset handling
+│   └── 2020_Patient/
 │       └── PatientDataset.py
-├── app.py                                 # Application / inference entry point
-├── main.html                              # Frontend or visualization page
-├── main_2020.ipynb                        # 2020 experiment notebook
-├── main_2020_2019_BCE.ipynb               # 2019+2020 BCE training notebook
-├── requirements.txt                       # Python dependencies
-├── sample_submission.csv                  # Submission template
-└── README.md                              # Project documentation
+├── app.py
+├── main.html
+├── main_2020.ipynb
+├── main_2020_2019_BCE.ipynb
+├── requirements.txt
+├── sample_submission.csv
+└── README.md
+
 
 
 ## Set up
