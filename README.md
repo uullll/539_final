@@ -1,5 +1,3 @@
-This project develops a patient-level melanoma detector using CNN-based architectures. Our project is inspired by the 2020 SIIM-ISIC competition. See https://www.kaggle.com/competitions/siim-isic-melanoma-classification for more details.
-
-## Data
-Datasets are available for download at https://challenge2020.isic-archive.com/.
+## Branch Description
+The code here is supplementary/experimental. It contains three Patient-Level self attention models. (1) multi-modal: combines lesion-level and patient-level loss; (2) instance-based pooling: self-attention pooling module (gated or not gated) individual logits from a frozen resnet101 pretrained on ISIC 2020 dataset; (3) embedding-based pooling: unfrozen layer 4 and head of resnet101 outputs an embedding (dim = 500) that is processed by a self-attention pooling module (gated or not gated).
 
