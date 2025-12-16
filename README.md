@@ -32,12 +32,11 @@ project-root/
 │   │   ├── models.py                       # Model architectures for 2020
 │   │   ├── train.py                        # Training scripts
 │   │   └── evaluate.py                     # Evaluation scripts
-│   └── 2020_Patient/                      # Patient-level dataset handling
-│       └── PatientDataset.py               # Patient dataset class
 ├── app.py                                 # Main application 
 ├── main.html                              # Frontend or visualization page
 ├── main_2020.ipynb                        # Notebook for 2020 experiments
 ├── main_2020_2019_BCE.ipynb               # Notebook for combined 2019+2020 BCE training
+├── main_2020_2019_BCE.ipynb               # Notebook for patient-level classifier
 ├── requirements.txt                       # Python dependencies
 ├── sample_submission.csv                  
 └── README.md                              # Project documentation
