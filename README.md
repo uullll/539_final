@@ -21,7 +21,7 @@ project-root/
 │   │   ├── Dataset_2019_2020.py           # Dataset definitions for 2019+2020
 │   │   ├── Models_lesion.py               # Model architectures
 │   │   ├── Train.py                       # Training scripts
-│   │   ├── Evaluate_multiclass.py         # Evaluation scripts for multi-class classification
+│   │   ├── Evaluate_multiclass.py         # Evaluation scripts for *binary* or multiclass classification
 │   │   └── Utility.py                     # Helper functions
 │   ├── 2020/                              # 2020-only experiments
 │   │   ├── dataset.py                      # Dataset definitions for 2020
