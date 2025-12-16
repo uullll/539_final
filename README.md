@@ -16,10 +16,6 @@ pip install -r requirements.txt
 ```text
 project-root/
 ├── Exported_Figures/                      # Saved figures and plots from model evaluations
-│   ├── EffNetB6 Confusion Matrix.jpg
-│   ├── EffNetB6 Probability Histogram.jpg
-│   ├── ResNet101 with Weighted Loss Confusion Matrix.jpg
-│   └── ResNet101 with Weighted Loss Probability Histogram.jpg
 ├── src/                                   # Core source code
 │   ├── 2019+2020/                         # Combined 2019 and 2020 dataset experiments
 │   │   ├── Dataset_2019_2020.py           # Dataset definitions for 2019+2020
