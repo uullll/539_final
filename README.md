@@ -41,7 +41,7 @@ project-root/
 ├── requirements.txt
 ├── sample_submission.csv
 └── README.md
-
+```text
 
 
 ## Set up
