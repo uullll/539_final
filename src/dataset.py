@@ -220,8 +220,12 @@ class MelanomaDS_19_20(Dataset):
             return "BKL"
         if x in self.unknown:
             return "UNK"
+        if x == 'nevus':
+            return "NV"
+        if x == 'melanoma':
+            return "MEL"
         return x
-
+        
     def _get_df2020(self, csv):
         df = pd.read_csv(csv)
         cols = ["image_name", "patient_id", "lesion_id", "sex", "age_approx", "anatom_site_general_challenge",
