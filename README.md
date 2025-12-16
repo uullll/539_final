@@ -1,7 +1,7 @@
 This project develops a melanoma detector using CNN-based architectures. Our project is inspired by the 2020 SIIM-ISIC competition. See https://www.kaggle.com/competitions/siim-isic-melanoma-classification for more details.
 
 ## Data
-Datasets are available for download at https://challenge2020.isic-archive.com/.
+Datasets are available for download at https://challenge2020.isic-archive.com/ and https://www.kaggle.com/datasets/andrewmvd/isic-2019.
  
 ## Environment
 - Python >= 3.8
