@@ -11,6 +11,7 @@ Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
+## Directory Structure
 
 ## Set up
 First run all in main.ipynb, main will call the fuction from the api in src. After running, main will create model like Best_Efficient_net_B6.pt, Best_Restnet101_meta.pt, best.pt.
