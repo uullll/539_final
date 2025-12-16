@@ -15,33 +15,33 @@ pip install -r requirements.txt
 
 ```text
 project-root/
-├── Exported_Figures/
+├── Exported_Figures/                      # Saved figures and plots from model evaluations
 │   ├── EffNetB6 Confusion Matrix.jpg
 │   ├── EffNetB6 Probability Histogram.jpg
 │   ├── ResNet101 with Weighted Loss Confusion Matrix.jpg
 │   └── ResNet101 with Weighted Loss Probability Histogram.jpg
-├── src/
-│   ├── 2019+2020/
-│   │   ├── Dataset_2019_2020.py
-│   │   ├── Models_lesion.py
-│   │   ├── Train.py
-│   │   ├── Evaluate_multiclass.py
-│   │   └── Utility.py
-│   ├── 2020/
-│   │   ├── dataset.py
-│   │   ├── models.py
-│   │   ├── train.py
-│   │   └── evaluate.py
-│   └── 2020_Patient/
-│       └── PatientDataset.py
-├── app.py
-├── main.html
-├── main_2020.ipynb
-├── main_2020_2019_BCE.ipynb
-├── requirements.txt
-├── sample_submission.csv
-└── README.md
-```text
+├── src/                                   # Core source code
+│   ├── 2019+2020/                         # Combined 2019 and 2020 dataset experiments
+│   │   ├── Dataset_2019_2020.py           # Dataset definitions for 2019+2020
+│   │   ├── Models_lesion.py               # Model architectures
+│   │   ├── Train.py                       # Training scripts
+│   │   ├── Evaluate_multiclass.py         # Evaluation scripts for multi-class classification
+│   │   └── Utility.py                     # Helper functions (data loading, metrics, etc.)
+│   ├── 2020/                              # 2020-only experiments
+│   │   ├── dataset.py                      # Dataset definitions for 2020
+│   │   ├── models.py                       # Model architectures for 2020
+│   │   ├── train.py                        # Training scripts
+│   │   └── evaluate.py                     # Evaluation scripts
+│   └── 2020_Patient/                      # Patient-level dataset handling
+│       └── PatientDataset.py               # Patient dataset class
+├── app.py                                 # Main application / inference entry point
+├── main.html                              # Frontend or visualization page
+├── main_2020.ipynb                        # Notebook for 2020 experiments
+├── main_2020_2019_BCE.ipynb               # Notebook for combined 2019+2020 BCE training
+├── requirements.txt                       # Python dependencies
+├── sample_submission.csv                  
+└── README.md                              # Project documentation
+```
 
 
 ## Set up
