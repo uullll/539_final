@@ -31,7 +31,8 @@ project-root/
 ├── app.py                                 # Main application 
 ├── main.html                              # Frontend or visualization page
 ├── main_2020.ipynb                        # Notebook for 2020 experiments
-├── main_2020_2019_BCE.ipynb               # Notebook for combined 2019+2020 BCE training
+├── main_2020_2019_BCE.ipynb               # Notebook for combined 2019+2020 using binary cross entropy (BCE)
+├── main_2020_2019_cross.ipynb             # Notebook for combined 2019+2020 using cross entropy
 ├── main_2020_2019_BCE.ipynb               # Notebook for patient-level classifier
 ├── requirements.txt                       # Python dependencies
 ├── sample_submission.csv                  
